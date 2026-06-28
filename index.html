@@ -467,7 +467,7 @@
 
   <!-- ═══════════════════════════════ HEADER ══════════════════════════════ -->
   <header id="header">
-    <div class="version">v1.0.2</div>
+    <div class="version">v1.0.3</div>
     <div class="app-title">Cosa Comprare</div>
   </header>
 
@@ -583,7 +583,7 @@
     <div class="info-panel">
       <span id="info-storico">Storico prodotti: 0 voci</span>
       <span id="info-sync">Ultimo sync: --:--</span>
-      <span>v1.0.2</span>
+      <span>v1.0.3</span>
     </div>
 
   </div>
@@ -1335,7 +1335,10 @@ function init() {
     const cachedLista   = JSON.parse(localStorage.getItem('cc_lista')   || '[]');
     const cachedStorico = JSON.parse(localStorage.getItem('cc_storico') || '[]');
     const cachedTime    = localStorage.getItem('cc_sync_time');
-    if (cachedLista.length > 0)   AppState.listaDaAcquistare = cachedLista;
+    if (cachedLista.length > 0) {
+      AppState.listaDaAcquistare = cachedLista.filter(function(p) { return !p.completato; });
+      AppState.listaCompletati   = cachedLista.filter(function(p) { return  p.completato; });
+    }
     if (cachedStorico.length > 0) AppState.storicoLocale     = cachedStorico;
     if (cachedTime) _setSyncPill('Sincronizza · Aggiornato ' + cachedTime, false);
   } catch(e) {
