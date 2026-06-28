@@ -596,24 +596,37 @@
 // ═══════════════════════════════════════════════════════════════
 const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxrJQmeb5vPPWpV_ofIb2clnOKw-MJ9GYQIJXmoXjD_T-2gunerZOraHDyIqe_BORyO/exec";
 
-/** Fetch con timeout tramite AbortController */
-async function _fetchTimeout(url, options, ms) {
+/** GET con timeout — usato per leggere dati dal backend */
+async function _fetchTimeout(url, ms) {
   const ctrl = new AbortController();
   const timer = setTimeout(function() { ctrl.abort(); }, ms);
   try {
-    const res = await fetch(url, Object.assign({}, options, { signal: ctrl.signal }));
-    const json = await res.json();
-    return json;
+    const res = await fetch(url, { signal: ctrl.signal, credentials: 'omit' });
+    return await res.json();
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * POST fire-and-forget verso GAS.
+ * Usa no-cors per evitare il blocco CORS sul redirect 302 di GAS:
+ * il body arriva comunque a doPost in e.postData.contents.
+ */
+function _post(data) {
+  fetch(WEBAPP_URL, {
+    method:      'POST',
+    mode:        'no-cors',
+    credentials: 'omit',
+    body:        JSON.stringify(data)
+  }).catch(function() {});
 }
 
 const API = {
   /** Scarica la lista attiva dal foglio Google */
   async getLista() {
     try {
-      const data = await _fetchTimeout(WEBAPP_URL + '?action=getLista', {}, 10000);
+      const data = await _fetchTimeout(WEBAPP_URL + '?action=getLista', 10000);
       return (data && data.success) ? data.data : [];
     } catch(e) {
       return [];
@@ -623,45 +636,21 @@ const API = {
   /** Scarica lo storico prodotti dal foglio Google */
   async getStorico() {
     try {
-      const data = await _fetchTimeout(WEBAPP_URL + '?action=getStorico', {}, 10000);
+      const data = await _fetchTimeout(WEBAPP_URL + '?action=getStorico', 10000);
       return (data && data.success) ? data.data : [];
     } catch(e) {
       return [];
     }
   },
 
-  /**
-   * Aggiunge prodotti al foglio Google.
-   * @param {Array<{nome:string, quantita:number}>} items
-   */
-  async addItems(items) {
-    try {
-      const data = await _fetchTimeout(WEBAPP_URL, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ action: 'addItems', items: items })
-      }, 10000);
-      return (data && data.success) ? data : { success: false };
-    } catch(e) {
-      return { success: false };
-    }
+  /** Aggiunge prodotti al foglio Google (fire-and-forget) */
+  addItems(items) {
+    _post({ action: 'addItems', items: items });
   },
 
-  /**
-   * Rimuove un prodotto dal foglio Google.
-   * @param {string} id
-   */
-  async removeItem(id) {
-    try {
-      const data = await _fetchTimeout(WEBAPP_URL, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ action: 'removeItem', id: id })
-      }, 10000);
-      return (data && data.success) ? data : { success: false };
-    } catch(e) {
-      return { success: false };
-    }
+  /** Rimuove un prodotto dal foglio Google (fire-and-forget) */
+  removeItem(id) {
+    _post({ action: 'removeItem', id: id });
   }
 };
 
@@ -1069,13 +1058,11 @@ function importaTesto(testo) {
     return { nome: normalizzaNome(p.nome), quantita: p.quantita };
   });
 
-  API.addItems(payload).then(function() {
+  API.addItems(payload);
+  setTimeout(function() {
     btnImport.textContent = 'Importa prodotti';
     btnImport.disabled = false;
-  }).catch(function() {
-    btnImport.textContent = 'Importa prodotti';
-    btnImport.disabled = false;
-  });
+  }, 1000);
   return prodotti.length;
 }
 
