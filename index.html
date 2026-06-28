@@ -627,7 +627,16 @@ const API = {
   async getLista() {
     try {
       const data = await _fetchTimeout(WEBAPP_URL + '?action=getLista', 10000);
-      return (data && data.success) ? data.data : [];
+      if (!data || !data.success) return [];
+      return data.data.map(function(r) {
+        return {
+          id:          r.id,
+          nome:        r.nome_prodotto || r.nome || '',
+          quantita:    r.quantita,
+          timestamp:   r.timestamp_inserimento || r.timestamp || '',
+          inserito_da: r.inserito_da || ''
+        };
+      });
     } catch(e) {
       return [];
     }
@@ -906,6 +915,7 @@ function completaProdotto(id) {
   if (idx === -1) return;
   const prodotto = AppState.listaDaAcquistare.splice(idx, 1)[0];
   AppState.listaCompletati.unshift(prodotto);
+  API.removeItem(prodotto.id);
   renderLista();
   mostraToast('Spostato in Completati', function() {
     ripristinaProdotto(prodotto, 'acquistare');
