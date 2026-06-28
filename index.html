@@ -467,7 +467,7 @@
 
   <!-- ═══════════════════════════════ HEADER ══════════════════════════════ -->
   <header id="header">
-    <div class="version">v1.0.1</div>
+    <div class="version">v1.0.2</div>
     <div class="app-title">Cosa Comprare</div>
   </header>
 
@@ -583,7 +583,7 @@
     <div class="info-panel">
       <span id="info-storico">Storico prodotti: 0 voci</span>
       <span id="info-sync">Ultimo sync: --:--</span>
-      <span>v1.0.1</span>
+      <span>v1.0.2</span>
     </div>
 
   </div>
@@ -634,7 +634,8 @@ const API = {
           nome:        r.nome_prodotto || r.nome || '',
           quantita:    r.quantita,
           timestamp:   r.timestamp_inserimento || r.timestamp || '',
-          inserito_da: r.inserito_da || ''
+          inserito_da: r.inserito_da || '',
+          completato:  r.completato ? 1 : 0
         };
       });
     } catch(e) {
@@ -660,6 +661,16 @@ const API = {
   /** Rimuove un prodotto dal foglio Google (fire-and-forget) */
   removeItem(id) {
     _post({ action: 'removeItem', id: id });
+  },
+
+  /** Segna un prodotto come completato nel foglio (fire-and-forget) */
+  completeItem(id) {
+    _post({ action: 'completeItem', id: id });
+  },
+
+  /** Riporta un prodotto a da-acquistare nel foglio (fire-and-forget) */
+  uncompleteItem(id) {
+    _post({ action: 'uncompleteItem', id: id });
   }
 };
 
@@ -915,7 +926,7 @@ function completaProdotto(id) {
   if (idx === -1) return;
   const prodotto = AppState.listaDaAcquistare.splice(idx, 1)[0];
   AppState.listaCompletati.unshift(prodotto);
-  API.removeItem(prodotto.id);
+  API.completeItem(prodotto.id);
   renderLista();
   mostraToast('Spostato in Completati', function() {
     ripristinaProdotto(prodotto, 'acquistare');
@@ -952,7 +963,6 @@ function ripristinaProdotto(prodotto, listaOrigine) {
   const lista = listaOrigine === 'completati'
     ? AppState.listaCompletati
     : AppState.listaDaAcquistare;
-  // Inserisce mantenendo ordine cronologico inverso (più recente prima)
   let inserted = false;
   for (let i = 0; i < lista.length; i++) {
     if (prodotto.timestamp >= lista[i].timestamp) {
@@ -962,6 +972,9 @@ function ripristinaProdotto(prodotto, listaOrigine) {
     }
   }
   if (!inserted) lista.push(prodotto);
+  // Notifica il backend del cambio di stato
+  if (listaOrigine === 'acquistare') API.uncompleteItem(prodotto.id);
+  else API.completeItem(prodotto.id);
   renderLista();
 }
 
@@ -1226,7 +1239,8 @@ async function sincronizza() {
   try {
     const [lista, storico] = await Promise.all([API.getLista(), API.getStorico()]);
 
-    AppState.listaDaAcquistare = lista;
+    AppState.listaDaAcquistare = lista.filter(function(p) { return !p.completato; });
+    AppState.listaCompletati   = lista.filter(function(p) { return  p.completato; });
     if (storico.length > 0) AppState.storicoLocale = storico;
 
     renderLista();
